@@ -1,10 +1,19 @@
 # flux-gitops-bot
 
-> A Github bot that will automatically suggest changes to a Flux helmrelease when a helm chart is updated.
+> A Github bot that will automatically suggest changes to a [Flux](https://fluxcd.io) [helmrelease](https://fluxcd.io/flux/components/helm/helmreleases/) when a helm chart is updated.
 
 ## Setup
 
+Expose webhook from local machine using [ngrok](https://ngrok.com/):
+
 ```sh
+
+```sh
+ngrok http 3000
+```
+
+Update webhook URL in [Github settings](https://github.com/settings/apps).
+
 # Install dependencies
 npm install
 
