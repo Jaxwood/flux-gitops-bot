@@ -5,10 +5,12 @@ import { findInTreeByFileName } from "./util";
 
 export = (app: Probot) => {
   app.on(["pull_request.opened", "pull_request.reopened", "pull_request.edited"], async (context) => {
-    const helmRelease = await getHelmRelease(context);
-    const gitopsRelease = await getGitopsRelease(context, helmRelease);
-    const changeRequest = await createChangeRequest(context, helmRelease, gitopsRelease);
-    await writeComment(context, helmRelease, gitopsRelease, changeRequest);
+    const helmReleases = await getHelmReleases(context);
+    for (const helmRelease of helmReleases) {
+      const gitopsRelease = await getGitopsRelease(context, helmRelease);
+      const changeRequest = await createChangeRequest(context, helmRelease, gitopsRelease);
+      await writeComment(context, helmRelease, gitopsRelease, changeRequest);
+    }
   })
 };
 
@@ -30,7 +32,6 @@ const createChangeRequest = async (context: any, helmRelease: HelmRelease, gitop
     });
     const buff = Buffer.from(gitopsBlob.data.content, 'base64').toString('ascii')
     const releaseYaml = parse(buff);
-
     // check if release is already up to date
     if (releaseYaml.spec.chart.spec.version === helmRelease.version) {
       console.info("Release already up to date");
@@ -59,6 +60,10 @@ const createChangeRequest = async (context: any, helmRelease: HelmRelease, gitop
       encoding: "utf-8",
       sha: gitopsRelease.file,
       branch: branch.data.ref, 
+      committer: {
+        name: process.env.GITUSER,
+        email: process.env.GITEMAIL
+      },
     });
     return {
       branch: prBranch,
@@ -66,34 +71,34 @@ const createChangeRequest = async (context: any, helmRelease: HelmRelease, gitop
     }
   }
 
-const getHelmRelease = async (context: any): Promise<HelmRelease> => {
+const getHelmReleases = async (context: any): Promise<HelmRelease[]> => {
     const diff = await context.octokit.repos.compareCommitsWithBasehead({
       owner: context.payload.repository.owner.login,
       repo: context.payload.repository.name,
       basehead: `${context.payload.pull_request.base.sha}...${context.payload.pull_request.head.sha}`,
     });
+    const releases = [];
     for (const file of diff.data.files) {
-      console.log(file);
+      if (file.filename.includes("Chart.yaml")) {
+        const chartBlob = await context.octokit.git.getBlob({
+          owner: context.payload.repository.owner.login,
+          repo: context.payload.repository.name,
+          file_sha: file.sha,
+        });
+        const buff = Buffer.from(chartBlob.data.content, 'base64').toString('ascii')
+        const chartYaml = parse(buff);
+        if (!chartYaml['annotations'] || !chartYaml['annotations']['acme.org/gitops']) {
+          console.info(`Chart ${chartYaml['name']} is missing acme.org/gitops annotation`)
+          continue;
+        }
+        releases.push({
+          name: chartYaml['name'],
+          version: chartYaml['version'],
+          repository: chartYaml['annotations']['acme.org/gitops'],
+        });
+      }
     }
-    const tree = await context.octokit.git.getTree({
-      owner: context.payload.repository.owner.login,
-      repo: context.payload.repository.name,
-      tree_sha: context.payload.pull_request.head.sha,
-      recursive: "true",
-    });
-    const chart = findInTreeByFileName(tree.data.tree, (x) => x ? x.includes("Chart.yaml") : false);
-    const chartBlob = await context.octokit.git.getBlob({
-      owner: context.payload.repository.owner.login,
-      repo: context.payload.repository.name,
-      file_sha: chart.sha,
-    });
-    const buff = Buffer.from(chartBlob.data.content, 'base64').toString('ascii')
-    const chartYaml = parse(buff);
-    return {
-      name: chartYaml['name'],
-      version: chartYaml['version'],
-      repository: chartYaml['annotations']['acme.org/gitops'],
-    };
+    return releases;
 }
 
 const getGitopsRelease = async (context: any, helmRelease: HelmRelease): Promise<GitopsRelease> => {
