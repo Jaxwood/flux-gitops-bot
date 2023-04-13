@@ -1,0 +1,8 @@
+apiVersion: v2
+name: foo
+description: An example Helm chart
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+annotations:
+  acme.org/gitops: "https://github.com/Jaxwood/flux-gitops-bot/blob/main/example/gitops/dev/release.yaml"
