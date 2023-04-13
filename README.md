@@ -1,6 +1,6 @@
 # flux-gitops-bot
 
-> A GitHub App built with [Probot](https://github.com/probot/probot) that A bot to help with Gitops
+> A Github bot that will automatically suggest changes to a Flux helmrelease when a helm chart is updated.
 
 ## Setup
 
