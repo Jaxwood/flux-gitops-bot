@@ -7,8 +7,6 @@
 Expose webhook from local machine using [ngrok](https://ngrok.com/):
 
 ```sh
-
-```sh
 ngrok http 3000
 ```
 
